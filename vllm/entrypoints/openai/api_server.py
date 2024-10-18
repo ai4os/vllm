@@ -781,10 +781,12 @@ def build_app(args: Namespace) -> FastAPI:
             if not request.url.path.startswith(f"{root_path}/v1"):
                 return await call_next(request)
             if "Authorization" not in request.headers:
+                logger.warning("Authorization header not found")
                 return JSONResponse(content={"error": "Unauthorized"},
                                     status_code=401)
             auth = request.headers["Authorization"]
             if not auth.startswith("Bearer "):
+                logger.warning("Authorization header not in Bearer format")
                 return JSONResponse(content={"error": "Unauthorized"},
                                     status_code=401)
             token = auth[7:]
@@ -792,7 +794,8 @@ def build_app(args: Namespace) -> FastAPI:
             scope = envs.VLLM_FERNET_API_KEY_SCOPE or args.fernet_api_key_scope
             try:
                 api_keys.validate(fernet_key, scope, token)
-            except (api_key_exc.InvalidKeyError, api_key_exc.InvalidScopeError):
+            except (api_key_exc.InvalidKeyError, api_key_exc.InvalidScopeError) as e:
+                logger.warning(f"Invalid API key {e}")
                 return JSONResponse(content={"error": "Unauthorized"},
                                     status_code=401)
 
