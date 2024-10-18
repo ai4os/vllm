@@ -793,7 +793,7 @@ def build_app(args: Namespace) -> FastAPI:
 
             scope = envs.VLLM_FERNET_API_KEY_SCOPE or args.fernet_api_key_scope
             try:
-                api_keys.validate(fernet_key, scope, token)
+                api_keys.validate(fernet_key, token, scope)
             except (api_key_exc.InvalidKeyError, api_key_exc.InvalidScopeError) as e:
                 logger.warning(f"Invalid API key {e}")
                 return JSONResponse(content={"error": "Unauthorized"},
