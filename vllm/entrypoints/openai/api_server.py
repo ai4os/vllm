@@ -19,6 +19,8 @@ from functools import partial
 from http import HTTPStatus
 from typing import Annotated, Optional, Union
 
+from ai4_api_keys import exceptions as api_key_exc
+from ai4_api_keys import keys as api_keys
 import uvloop
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -748,7 +750,12 @@ def build_app(args: Namespace) -> FastAPI:
         return JSONResponse(err.model_dump(),
                             status_code=HTTPStatus.BAD_REQUEST)
 
-    if token := envs.VLLM_API_KEY or args.api_key:
+    token = envs.VLLM_API_KEY or args.api_key
+    fernet_key = envs.VLLM_FERNET_KEY or args.fernet_key
+    if token and fernet_key:
+        raise ValueError("Cannot use both API key and Fernet key for auth.")
+
+    elif token:
 
         @app.middleware("http")
         async def authentication(request: Request, call_next):
@@ -762,6 +769,33 @@ def build_app(args: Namespace) -> FastAPI:
             if request.headers.get("Authorization") != "Bearer " + token:
                 return JSONResponse(content={"error": "Unauthorized"},
                                     status_code=401)
+            return await call_next(request)
+
+    elif fernet_key:
+
+        @app.middleware("http")
+        async def authentication(request: Request, call_next):
+            root_path = "" if args.root_path is None else args.root_path
+            if request.method == "OPTIONS":
+                return await call_next(request)
+            if not request.url.path.startswith(f"{root_path}/v1"):
+                return await call_next(request)
+            if "Authorization" not in request.headers:
+                return JSONResponse(content={"error": "Unauthorized"},
+                                    status_code=401)
+            auth = request.headers["Authorization"]
+            if not auth.startswith("Bearer "):
+                return JSONResponse(content={"error": "Unauthorized"},
+                                    status_code=401)
+            token = auth[7:]
+
+            scope = envs.VLLM_FERNET_API_KEY_SCOPE or args.fernet_api_key_scope
+            try:
+                api_keys.validate(fernet_key, scope, token)
+            except (api_key_exc.InvalidKeyError, api_key_exc.InvalidScopeError):
+                return JSONResponse(content={"error": "Unauthorized"},
+                                    status_code=401)
+
             return await call_next(request)
 
     if args.enable_request_id_headers:

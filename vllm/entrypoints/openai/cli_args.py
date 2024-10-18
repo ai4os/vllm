@@ -109,6 +109,14 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
                         default=None,
                         help="If provided, the server will require this key "
                         "to be presented in the header.")
+    parser.add_argument("--fernet-key",
+                        type=nullable_str,
+                        default=None,
+                        help="The Fernet key to verify API keys.")
+    parser.add_argument("--fernet-key-scope",
+                        type=nullable_str,
+                        default=None,
+                        help="The Fernet key scope to verify API keys.")
     parser.add_argument(
         "--lora-modules",
         type=nullable_str,
